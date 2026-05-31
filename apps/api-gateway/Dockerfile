@@ -20,8 +20,8 @@ RUN /app/node_modules/.bin/tsc --project ./apps/api-gateway/tsconfig.json
 FROM node:20-alpine AS production
 WORKDIR /app
 RUN apk add --no-cache openssl
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api-gateway/dist ./dist
-COPY --from=build /app/apps/api-gateway/node_modules ./node_modules
 COPY --from=build /app/apps/api-gateway/package.json ./
 EXPOSE 3000
 CMD ["node", "dist/server.js"]
