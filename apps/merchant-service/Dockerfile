@@ -21,8 +21,8 @@ RUN /app/node_modules/.bin/tsc --project ./apps/merchant-service/tsconfig.json
 FROM node:20-alpine AS production
 WORKDIR /app
 RUN apk add --no-cache openssl
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/merchant-service/dist ./dist
-COPY --from=build /app/apps/merchant-service/node_modules ./node_modules
 COPY --from=build /app/apps/merchant-service/package.json ./
 COPY --from=build /app/apps/merchant-service/prisma ./prisma
 EXPOSE 3002

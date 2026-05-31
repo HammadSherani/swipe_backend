@@ -33,8 +33,8 @@ FROM node:20-alpine AS production
 WORKDIR /app
 RUN apk add --no-cache openssl
 
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/auth-service/dist ./dist
-COPY --from=build /app/apps/auth-service/node_modules ./node_modules
 COPY --from=build /app/apps/auth-service/package.json ./
 COPY --from=build /app/apps/auth-service/prisma ./prisma
 
