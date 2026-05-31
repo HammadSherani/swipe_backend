@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: apps/auth-service/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@auth-db:5432/auth_db
+      - JWT_SECRET=your-secret-key
+      - REDIS_URL=redis://redis:6379
+      - PORT=3001
+      - NODE_ENV=production
+    depends_on:
+      - auth-db
+      - redis
+
+  merchant-service:
+    build:
+      context: .
+      dockerfile: apps/merchant-service/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@merchant-db:5432/merchant_db
+      - JWT_SECRET=your-secret-key
+      - REDIS_URL=redis://redis:6379
+      - PORT=3002
+      - NODE_ENV=production
+    depends_on:
+      - merchant-db
+      - redis
+
+  qr-service:
+    build:
+      context: .
+      dockerfile: apps/qr-service/Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@qr-db:5432/qr_db
+      - JWT_SECRET=your-secret-key
+      - REDIS_URL=redis://redis:6379
+      - PORT=3003
+      - NODE_ENV=production
+    depends_on:
+      - qr-db
+      - redis
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - MERCHANT_SERVICE_URL=http://merchant-service:3002
+      - QR_SERVICE_URL=http://qr-service:3003
+      - JWT_SECRET=your-secret-key
+      - PORT=3000
+      - NODE_ENV=production
+    depends_on:
+      - auth-service
+      - merchant-service
+      - qr-service
+
+  auth-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: auth_db
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+
+  merchant-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: merchant_db
+    volumes:
+      - merchant_db_data:/var/lib/postgresql/data
+
+  qr-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: qr_db
+    volumes:
+      - qr_db_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+volumes:
+  auth_db_data:
+  merchant_db_data:
+  qr_db_data:
+  redis_data:

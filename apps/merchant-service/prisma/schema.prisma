@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Merchant {
+  id            String   @id @default(uuid())
+   userId    String @unique
+  nibssId       String?  @unique   // NIBSS merchant ID
+  businessName  String
+  businessType  String
+  ownerName     String
+  email         String   @unique
+  mobile        String   @unique
+  bankCode      String              // Nigerian bank code
+  accountNumber String
+  accountName   String
+  status        MerchantStatus @default(PENDING)
+  isVerified    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  qrCodes       QrCode[]
+  paymentLinks  PaymentLink[]
+
+  @@map("merchants")
+}
+
+model QrCode {
+  id          String   @id @default(uuid())
+  merchantId  String
+  type        QrType           // STATIC, DYNAMIC
+  nibssQrData String?          // Raw NIBSS QR string
+  amount      Decimal?         // For dynamic QR
+  reference   String   @unique
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?        // For dynamic QR
+
+  merchant    Merchant @relation(fields: [merchantId], references: [id])
+
+  @@map("qr_codes")
+}
+
+model PaymentLink {
+  id          String   @id @default(uuid())
+  merchantId  String
+  url         String   @unique
+  amount      Decimal?
+  description String?
+  isActive    Boolean  @default(true)
+  clicks      Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  merchant    Merchant @relation(fields: [merchantId], references: [id])
+
+  @@map("payment_links")
+}
+
+enum MerchantStatus {
+  PENDING
+  VERIFIED
+  ACTIVE
+  REJECTED    
+  SUSPENDED
+}
+
+enum QrType {
+  STATIC
+  DYNAMIC
+}

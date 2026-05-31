@@ -1,0 +1,14 @@
+// src/utils/otp.ts
+
+import crypto from 'crypto';
+
+export const generateOtp = (): string => {
+  return crypto.randomInt(100000, 999999).toString();
+};
+
+export const verifyOtp = (inputCode: string, storedCode: string): boolean => {
+  return crypto.timingSafeEqual(
+    Buffer.from(inputCode),
+    Buffer.from(storedCode)
+  );
+};

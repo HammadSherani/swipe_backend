@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model QrCode {
+  id          String   @id @default(uuid())
+  merchantId  String
+  type        QrType
+  rawData     String   // NIBSS QR raw string
+  imageUrl    String?  // Generated QR image URL
+  amount      Decimal? // For dynamic QR
+  reference   String   @unique
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime? // For dynamic QR
+  createdAt   DateTime @default(now())
+
+  @@index([merchantId])
+  @@map("qr_codes")
+}
+
+enum QrType {
+  STATIC
+  DYNAMIC
+}
