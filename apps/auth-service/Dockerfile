@@ -39,4 +39,4 @@ COPY --from=build /app/apps/auth-service/package.json ./
 COPY --from=build /app/apps/auth-service/prisma ./prisma
 
 EXPOSE 3001
-CMD ["node", "dist/server.js"]
+CMD ["sh", "-c", "/app/node_modules/.bin/prisma migrate deploy --schema=./prisma/schema.prisma && node dist/server.js"]

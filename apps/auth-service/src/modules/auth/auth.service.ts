@@ -46,7 +46,6 @@ export class AuthService {
       await prisma.pendingRegistration.delete({ where: { mobile: data.mobile } });
     }
 
-    // Generate OTPs
     const emailOtp = generateOtp();
     const mobileOtp = generateOtp();
 
