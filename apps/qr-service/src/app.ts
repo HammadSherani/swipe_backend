@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
-import { qrRoutes } from './modules/qr/qr.routes';
-import { errorHandlerPlugin } from './plugins/error-handler';
+import { qrRoutes } from './modules/qr/qr.routes.js';
+import { errorHandlerPlugin } from './plugins/error-handler.js';
 
 export async function buildApp() {
   const app = Fastify({ 

@@ -1,7 +1,7 @@
-import { prisma } from '../../config/database';
+import { prisma } from '../../config/database.js';
 import QRCode from 'qrcode';
-import { GenerateStaticQrInput, GenerateDynamicQrInput, DecodeQrInput } from './qr.schema';
-import { BadRequestError, NotFoundError } from '../../errors/custom-errors';
+import { GenerateStaticQrInput, GenerateDynamicQrInput, DecodeQrInput } from './qr.schema.js';
+import { BadRequestError, NotFoundError } from '../../errors/custom-errors.js';
 
 export class QrService {
   

@@ -1,6 +1,6 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { QrService } from './qr.service';
-import { GenerateStaticQrInput, GenerateDynamicQrInput, DecodeQrInput } from './qr.schema';
+import { QrService } from './qr.service.js';
+import { GenerateStaticQrInput, GenerateDynamicQrInput, DecodeQrInput } from './qr.schema.js';
 
 export async function generateStaticHandler(
   request: FastifyRequest<{ Body: GenerateStaticQrInput }>,

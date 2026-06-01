@@ -4,8 +4,8 @@ import {
   generateDynamicHandler,
   decodeHandler,
   getByMerchantHandler,
-} from './qr.controller';
-import { authenticate } from '../../plugins/auth-middleware';
+} from './qr.controller.js';
+import { authenticate } from '../../plugins/auth-middleware.js';
 
 export async function qrRoutes(fastify: FastifyInstance) {
   
