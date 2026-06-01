@@ -1,6 +1,6 @@
 
 
-import { buildApp } from './app';
+import { buildApp } from './app.js';
 import { env } from './config/env';
 
 async function start() {
