@@ -1,4 +1,4 @@
-import { redis } from './redis';
+import { redis } from './redis.js';
 
 // Rate limit config
 const MAX_OTP_REQUESTS = 3;

@@ -11,7 +11,7 @@ import {
   forgotPasswordHandler,
   resetPasswordHandler,
   changePasswordHandler 
-} from './auth.controller';
+} from './auth.controller.js';
 
 // ✅ Direct authenticate function (plugin ki zaroorat nahi)
 async function authenticate(request: FastifyRequest, reply: FastifyReply) {

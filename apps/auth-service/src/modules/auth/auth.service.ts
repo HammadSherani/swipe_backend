@@ -1,17 +1,17 @@
 import { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
-import { env } from '../../config/env';
-import { generateOtp } from '../../utils/otp';
-import { storeOtp, getOtp, deleteOtp, storeSession, getSession, deleteSession } from '../../config/redis';
-import { checkOtpRateLimit } from '../../config/rate-limit';
+import { env } from '../../config/env.js';
+import { generateOtp } from '../../utils/otp.js';
+import { storeOtp, getOtp, deleteOtp, storeSession, getSession, deleteSession } from '../../config/redis.js';
+import { checkOtpRateLimit } from '../../config/rate-limit.js';
 import {
   BadRequestError,
   UnauthorizedError,
   TooManyRequestsError,
   NotFoundError
-} from '../../errors/custom-errors';
-import { InitiateRegisterInput, VerifyOtpInput, LoginInput, ForgotPasswordInput, ResetPasswordInput, ChangePasswordInput } from './auth.schema';
-import { prisma } from '../../config/database';
+} from '../../errors/custom-errors.js';
+import { InitiateRegisterInput, VerifyOtpInput, LoginInput, ForgotPasswordInput, ResetPasswordInput, ChangePasswordInput } from './auth.schema.js';
+import { prisma } from '../../config/database.js';
 
 export class AuthService {
   constructor(private fastify: FastifyInstance) { }

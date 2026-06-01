@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyError, FastifyRequest, FastifyReply } from 'fastify';
-import { AppError } from '../errors/custom-errors';
+import { AppError } from '../errors/custom-errors.js';
 
 function isFastifyError(error: Error): error is FastifyError {
   return 'code' in error;

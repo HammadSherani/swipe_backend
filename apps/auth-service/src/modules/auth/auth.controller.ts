@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { AuthService } from './auth.service';
-import { InitiateRegisterInput, VerifyOtpInput, LoginInput, RefreshTokenInput, ForgotPasswordInput, ResetPasswordInput, ChangePasswordInput } from './auth.schema';
-import { UnauthorizedError } from '../../errors/custom-errors';
+import { AuthService } from './auth.service.js';
+import { InitiateRegisterInput, VerifyOtpInput, LoginInput, RefreshTokenInput, ForgotPasswordInput, ResetPasswordInput, ChangePasswordInput } from './auth.schema.js';
+import { UnauthorizedError } from '../../errors/custom-errors.js';
 
 export async function initiateRegisterHandler(
   request: FastifyRequest<{ Body: InitiateRegisterInput }>,
