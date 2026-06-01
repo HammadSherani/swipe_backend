@@ -3,8 +3,8 @@
 import Fastify from 'fastify';
 import jwt from '@fastify/jwt';
 import swaggerPlugin from './plugins/swagger.js';
-import { authRoutes } from './modules/auth/auth.routes';
-import { logger } from './utils/logger';
+import { authRoutes } from './modules/auth/auth.routes.js';
+import { logger } from './utils/logger.js';
 
 export async function buildApp() {
   const app = Fastify({ logger });
