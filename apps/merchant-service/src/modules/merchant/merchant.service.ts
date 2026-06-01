@@ -1,6 +1,6 @@
-import { OnboardInput } from './merchant.schema';
-import { NotFoundError, BadRequestError } from '../../errors/custom-errors';
-import { prisma } from '../../config/database';
+import { OnboardInput } from './merchant.schema.js';
+import { NotFoundError, BadRequestError } from '../../errors/custom-errors.js';
+import { prisma } from '../../config/database.js';
 import { MerchantStatus } from '@prisma/client';
 
 export class MerchantService {

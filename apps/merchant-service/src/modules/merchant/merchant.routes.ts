@@ -3,8 +3,8 @@ import {
   onboardHandler,
   getMerchantHandler,
   nibssCallbackHandler,
-} from './merchant.controller';
-import { authenticate } from '../../plugins/auth-middleware';
+} from './merchant.controller.js';
+import { authenticate } from '../../plugins/auth-middleware.js';
 
 export async function merchantRoutes(fastify: FastifyInstance) {
 

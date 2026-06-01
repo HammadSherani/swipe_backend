@@ -1,6 +1,6 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { MerchantService } from './merchant.service';
-import { OnboardInput, NibssCallbackInput } from './merchant.schema';
+import { MerchantService } from './merchant.service.js';
+import { OnboardInput, NibssCallbackInput } from './merchant.schema.js';
 
 function getUserId(request: FastifyRequest): string {
   const user = request.user as { userId: string };
