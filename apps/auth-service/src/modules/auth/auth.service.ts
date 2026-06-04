@@ -319,21 +319,29 @@ export class AuthService {
       throw new NotFoundError("User not found");
     }
 
-    const key = `forgot:${user.id}`;
-
-    // always static OTP (NO ENV CHECK)
     const otp = STATIC_OTP;
+    const key = `forgot:${user.id}`;
 
     await storeSession(key, otp, 600);
 
-    // ❌ NO EMAIL / NO SMS
-    console.log(`🔐 Forgot Password OTP for ${user.email || user.mobile}: ${otp}`);
+    // 🔗 reset link (DEV ONLY)
+    const resetLink = `${env.PASSWORD_RESET_URL}?email=${encodeURIComponent(
+      user.email
+    )}&otp=${encodeURIComponent(otp)}`;
+
+    console.log("====================================");
+    console.log("🔐 FORGOT PASSWORD FLOW (DEV MODE)");
+    console.log("👤 User:", user.email || user.mobile);
+    console.log("📌 OTP:", otp);
+    console.log("🔗 Reset Link:", resetLink);
+    console.log("====================================");
 
     return {
       success: true,
       message: "OTP generated successfully",
       expiresIn: 600,
-      otp, // 👈 for frontend testing only (REMOVE IN PROD)
+      otp,
+      resetLink, // 👈 frontend testing ke liye optional
     };
   }
 
