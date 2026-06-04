@@ -55,7 +55,7 @@ export class AuthService {
       });
 
       // ✅ Send Email OTP
-      await sendOtpEmail(existingPending.email, newEmailOtp, existingPending.firstName);
+      // await sendOtpEmail(existingPending.email, newEmailOtp, existingPending.firstName);
 
       // TODO: Send SMS OTP
       console.log(`📱 Resent Mobile OTP for ${existingPending.mobile}: ${newMobileOtp}`);
