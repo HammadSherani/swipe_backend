@@ -304,7 +304,6 @@ export class AuthService {
     let user;
 
     const STATIC_OTP = "123456";
-    const IS_STATIC_OTP = process.env.OTP_MODE === "static";
 
     if (data.email) {
       user = await prisma.user.findUnique({
@@ -320,40 +319,21 @@ export class AuthService {
       throw new NotFoundError("User not found");
     }
 
-    const otp = IS_STATIC_OTP ? STATIC_OTP : generateOtp();
     const key = `forgot:${user.id}`;
 
-    // Store OTP in Redis for 10 minutes (still keep for consistency)
+    // always static OTP (NO ENV CHECK)
+    const otp = STATIC_OTP;
+
     await storeSession(key, otp, 600);
 
-    if (data.email) {
-      const resetLink = `${env.PASSWORD_RESET_URL}?email=${encodeURIComponent(
-        user.email
-      )}&otp=${encodeURIComponent(otp)}`;
-
-      await sendPasswordResetEmail(
-        user.email,
-        otp,
-        user.firstName,
-        resetLink
-      );
-
-      console.log(
-        `📧 Forgot Password reset link sent to ${user.email}: ${resetLink}`
-      );
-    }
-
-    if (data.mobile) {
-      console.log(
-        `📱 Forgot Password OTP for ${user.mobile}: ${otp}`
-      );
-    }
+    // ❌ NO EMAIL / NO SMS
+    console.log(`🔐 Forgot Password OTP for ${user.email || user.mobile}: ${otp}`);
 
     return {
       success: true,
-      message: "OTP sent for password reset",
+      message: "OTP generated successfully",
       expiresIn: 600,
-      ...(IS_STATIC_OTP && { devOtp: STATIC_OTP }), // 👈 helpful for frontend testing
+      otp, // 👈 for frontend testing only (REMOVE IN PROD)
     };
   }
 
@@ -362,7 +342,6 @@ export class AuthService {
     let user;
 
     const STATIC_OTP = "123456";
-    const IS_STATIC_OTP = process.env.OTP_MODE === "static";
 
     if (data.email) {
       user = await prisma.user.findUnique({ where: { email: data.email } });
@@ -377,12 +356,9 @@ export class AuthService {
     const key = `forgot:${user.id}`;
     const storedOtp = await getSession(key);
 
-    const isValidOtp =
-      storedOtp &&
-      (data.otp === storedOtp || (IS_STATIC_OTP && data.otp === STATIC_OTP));
-
-    if (!isValidOtp) {
-      throw new BadRequestError("Invalid or expired OTP");
+    // simple static validation
+    if (!storedOtp || data.otp !== STATIC_OTP) {
+      throw new BadRequestError("Invalid OTP");
     }
 
     const hashedPassword = await bcrypt.hash(data.newPassword, 12);
