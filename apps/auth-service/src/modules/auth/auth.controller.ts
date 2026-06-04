@@ -22,12 +22,29 @@ export async function verifyOtpsHandler(
 }
 
 export async function resendOtpHandler(
-  request: FastifyRequest<{ Body: { mobile: string; type: 'email' | 'mobile' } }>,
+  request: FastifyRequest<{
+    Body: {
+      email: string;
+      mobile: string;
+      type: 'email' | 'mobile';
+    };
+  }>,
   reply: FastifyReply
 ) {
   const authService = new AuthService(request.server);
-  const result = await authService.resendOtp(request.body.mobile, request.body.type);
-  return reply.status(200).send({ success: true, data: result });
+
+  const result = await authService.resendOtp(
+    {
+      email: request.body.email,
+      mobile: request.body.mobile,
+    },
+    request.body.type
+  );
+
+  return reply.status(200).send({
+    success: true,
+    data: result,
+  });
 }
 
 export async function loginHandler(
@@ -94,3 +111,5 @@ export async function changePasswordHandler(
   const result = await authService.changePassword(userId, request.body);
   return reply.status(200).send({ success: true, data: result });
 }
+
+

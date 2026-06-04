@@ -3,6 +3,7 @@ import {
   onboardHandler,
   getMerchantHandler,
   nibssCallbackHandler,
+  getBanksHandler,
 } from './merchant.controller.js';
 import { authenticate } from '../../plugins/auth-middleware.js';
 
@@ -10,6 +11,7 @@ export async function merchantRoutes(fastify: FastifyInstance) {
 
   // Public — NIBSS webhook (no auth)
   fastify.post('/webhook/nibss', nibssCallbackHandler);
+  fastify.get('/getBanks', getBanksHandler);
 
   // Protected — JWT required
   fastify.post('/onboard', {
@@ -23,4 +25,9 @@ export async function merchantRoutes(fastify: FastifyInstance) {
     preHandler: authenticate,
     handler: getMerchantHandler,
   });
+  // fastify.get('/getBanks', {
+  //   schema: { tags: ['Merchants'], description: 'Get my merchant details' },
+  //   // preHandler: authenticate,
+  //   handler: getBanksHandler,
+  // });
 }

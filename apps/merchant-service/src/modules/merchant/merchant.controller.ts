@@ -39,3 +39,17 @@ export async function nibssCallbackHandler(
   );
   return reply.send({ success: true, data: result });
 }
+
+export async function getBanksHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const service = new MerchantService();
+
+  const result = await service.getBanks();
+
+  return reply.status(200).send({
+    success: true,
+    data: result,
+  });
+}

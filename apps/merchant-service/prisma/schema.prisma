@@ -7,45 +7,80 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────
+// MERCHANT (Main Entity)
+// ─────────────────────────────────────────────
 model Merchant {
   id            String   @id @default(uuid())
-   userId    String @unique
-  nibssId       String?  @unique   // NIBSS merchant ID
+  
+  userId        String   @unique
+  
+  nibssId       String?  @unique  
+  pagaReference String?             
+  
+  // 🏢 Business Info
   businessName  String
   businessType  String
+  description   String?
+  
+  // 👤 Owner Info
   ownerName     String
+  ownerDob      DateTime?           
+  
+  // 📧 Contact
   email         String   @unique
   mobile        String   @unique
-  bankCode      String              // Nigerian bank code
+  
+  // 🏠 Address (Required by Paga API)
+  addressLine1  String              @default("Not Provided")
+  addressLine2  String?
+  addressCity   String              @default("Lagos")
+  addressState  String              @default("Lagos")
+  addressZip    String?
+  addressCountry String              @default("Nigeria")
+  
+  // 🏦 Bank Details
+  bankCode      String
   accountNumber String
   accountName   String
+  
+  // 📊 Status
   status        MerchantStatus @default(PENDING)
   isVerified    Boolean  @default(false)
+  
+  // 📝 Metadata
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // 🔗 Relations
   qrCodes       QrCode[]
   paymentLinks  PaymentLink[]
 
   @@map("merchants")
 }
 
+// ─────────────────────────────────────────────
+// QR CODE
+// ─────────────────────────────────────────────
 model QrCode {
   id          String   @id @default(uuid())
   merchantId  String
-  type        QrType           // STATIC, DYNAMIC
-  nibssQrData String?          // Raw NIBSS QR string
-  amount      Decimal?         // For dynamic QR
+  type        QrType
+  nibssQrData String?
+  amount      Decimal?
   reference   String   @unique
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
-  expiresAt   DateTime?        // For dynamic QR
+  expiresAt   DateTime?
 
   merchant    Merchant @relation(fields: [merchantId], references: [id])
 
   @@map("qr_codes")
 }
 
+// ─────────────────────────────────────────────
+// PAYMENT LINK
+// ─────────────────────────────────────────────
 model PaymentLink {
   id          String   @id @default(uuid())
   merchantId  String

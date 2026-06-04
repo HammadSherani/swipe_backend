@@ -11,9 +11,16 @@ export class AppError extends Error {
 }
 
 // Specific error types
-export class BadRequestError extends AppError {
-  constructor(message: string) {
-    super(message, 400);
+export class BadRequestError extends Error {
+  statusCode: number;
+  code?: string;
+  data?: any;
+
+  constructor(message: string, code?: string, data?: any) {
+    super(message);
+    this.statusCode = 400;
+    this.code = code;
+    this.data = data;
   }
 }
 

@@ -17,6 +17,13 @@ const envSchema = z.object({
   PORT: z.string().default('3001'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   OTP_EXPIRES_IN: z.string().default('300').transform(Number),
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.string().default('587'),
+  SMTP_SECURE: z.string().default('false'),
+  SMTP_USER: z.string(),
+  SMTP_PASS: z.string(),
+  FROM_EMAIL: z.string().email(),
+  PASSWORD_RESET_URL: z.string().url().default('http://localhost:3000/auth/reset-password'),
 });
 
 export const env = envSchema.parse(process.env);

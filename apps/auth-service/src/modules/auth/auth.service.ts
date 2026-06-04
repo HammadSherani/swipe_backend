@@ -12,6 +12,7 @@ import {
 } from '../../errors/custom-errors.js';
 import { InitiateRegisterInput, VerifyOtpInput, LoginInput, ForgotPasswordInput, ResetPasswordInput, ChangePasswordInput } from './auth.schema.js';
 import { prisma } from '../../config/database.js';
+import { sendOtpEmail, sendPasswordResetEmail } from '@/services/email.service.js';
 
 export class AuthService {
   constructor(private fastify: FastifyInstance) { }
@@ -21,6 +22,105 @@ export class AuthService {
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
       where: {
+        OR: [{ email: data.email }, { mobile: data.mobile }],
+      },
+    });
+
+    if (existingUser) {
+      throw new BadRequestError(
+        'User with this email or mobile already exists'
+      );
+    }
+
+    // Check pending registration
+    const existingPending = await prisma.pendingRegistration.findFirst({
+      where: {
+        OR: [{ email: data.email }, { mobile: data.mobile }],
+      },
+    });
+
+    // Active OTP already exists → resend OTP
+    if (existingPending && existingPending.expiresAt > new Date()) {
+      const newEmailOtp = generateOtp();
+      const newMobileOtp = generateOtp();
+      const newExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await prisma.pendingRegistration.update({
+        where: { id: existingPending.id },
+        data: {
+          emailOtp: newEmailOtp,
+          mobileOtp: newMobileOtp,
+          expiresAt: newExpiresAt,
+        },
+      });
+
+      // ✅ Send Email OTP
+      await sendOtpEmail(existingPending.email, newEmailOtp, existingPending.firstName);
+
+      // TODO: Send SMS OTP
+      console.log(`📱 Resent Mobile OTP for ${existingPending.mobile}: ${newMobileOtp}`);
+
+      return {
+        message: 'OTP resent to your email and mobile',
+        expiresIn: 600,
+      };
+    }
+
+    const emailOtp = generateOtp();
+    const mobileOtp = generateOtp();
+
+    const hashedPassword = await bcrypt.hash(data.password, 12);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Expired pending exists → update
+    if (existingPending) {
+      await prisma.pendingRegistration.update({
+        where: { id: existingPending.id },
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          mobile: data.mobile,
+          password: hashedPassword,
+          role: data.role,
+          emailOtp,
+          mobileOtp,
+          expiresAt,
+        },
+      });
+    } else {
+      // Create new pending registration
+      await prisma.pendingRegistration.create({
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          mobile: data.mobile,
+          password: hashedPassword,
+          role: data.role,
+          emailOtp,
+          mobileOtp,
+          expiresAt,
+        },
+      });
+    }
+
+    // ✅ Send Email OTP
+    await sendOtpEmail(data.email, emailOtp, data.firstName);
+
+    // TODO: Send SMS OTP
+    console.log(`📱 Mobile OTP for ${data.mobile}: ${mobileOtp}`);
+
+    return {
+      message: 'OTP sent to your email and mobile',
+      expiresIn: 600,
+    };
+  }
+
+  // ========== STEP 2: Verify Both OTPs & Register ==========
+  async verifyOtpsAndRegister(data: VerifyOtpInput) {
+    const pending = await prisma.pendingRegistration.findFirst({
+      where: {
         OR: [
           { email: data.email },
           { mobile: data.mobile },
@@ -28,86 +128,32 @@ export class AuthService {
       },
     });
 
-    if (existingUser) {
-      throw new BadRequestError('User with this email or mobile already exists');
-    }
-
-    // Check pending registration
-    const existingPending = await prisma.pendingRegistration.findUnique({
-      where: { mobile: data.mobile },
-    });
-
-    if (existingPending && existingPending.expiresAt > new Date()) {
-      throw new BadRequestError('Registration already initiated. Please verify OTPs.');
-    }
-
-    // Delete old pending if expired
-    if (existingPending) {
-      await prisma.pendingRegistration.delete({ where: { mobile: data.mobile } });
-    }
-
-    const emailOtp = generateOtp();
-    const mobileOtp = generateOtp();
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(data.password, 12);
-
-    // Save pending registration
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    await prisma.pendingRegistration.create({
-      data: {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        mobile: data.mobile,
-        password: hashedPassword,
-        role: data.role,
-        emailOtp,
-        mobileOtp,
-        expiresAt,
-      },
-    });
-
-    // TODO: Send email OTP via email service
-    // TODO: Send mobile OTP via SMS service
-
-    console.log(`📧 Email OTP for ${data.email}: ${emailOtp}`);
-    console.log(`📱 Mobile OTP for ${data.mobile}: ${mobileOtp}`);
-
-    return {
-      message: 'OTP sent to your email and mobile',
-      expiresIn: 600, // 10 minutes
-    };
-  }
-
-  // ========== STEP 2: Verify Both OTPs & Register ==========
-  async verifyOtpsAndRegister(data: VerifyOtpInput) {
-    // Find pending registration
-    const pending = await prisma.pendingRegistration.findUnique({
-      where: { mobile: data.mobile },
-    });
-
     if (!pending) {
-      throw new BadRequestError('No pending registration found. Please initiate registration first.');
+      throw new BadRequestError(
+        'No pending registration found. Please initiate registration first.'
+      );
     }
 
     if (pending.expiresAt < new Date()) {
-      await prisma.pendingRegistration.delete({ where: { mobile: data.mobile } });
-      throw new BadRequestError('OTP expired. Please initiate registration again.');
+      await prisma.pendingRegistration.delete({
+        where: {
+          id: pending.id,
+        },
+      });
+
+      throw new BadRequestError(
+        'OTP expired. Please initiate registration again.'
+      );
     }
 
-    // Verify email OTP
     if (pending.emailOtp !== data.emailOtp) {
       throw new BadRequestError('Invalid email OTP');
     }
 
-    // Verify mobile OTP
     if (pending.mobileOtp !== data.mobileOtp) {
       throw new BadRequestError('Invalid mobile OTP');
     }
 
-    // Create user
     const user = await prisma.user.create({
       data: {
         firstName: pending.firstName,
@@ -120,11 +166,17 @@ export class AuthService {
       },
     });
 
-    // Delete pending registration
-    await prisma.pendingRegistration.delete({ where: { mobile: data.mobile } });
+    await prisma.pendingRegistration.delete({
+      where: {
+        id: pending.id,
+      },
+    });
 
-    // Generate tokens
-    const tokens = await this.generateTokens(user.id, user.role);
+    const tokens = await this.generateTokens(
+      user.id,
+      user.role,
+      user.kycStatus
+    );
 
     return {
       message: 'Registration successful',
@@ -135,15 +187,22 @@ export class AuthService {
         email: user.email,
         mobile: user.mobile,
         role: user.role,
+        kycStatus: user.kycStatus,
       },
       ...tokens,
     };
   }
 
   // ========== RESEND OTP ==========
-  async resendOtp(mobile: string, type: 'email' | 'mobile') {
-    const pending = await prisma.pendingRegistration.findUnique({
-      where: { mobile },
+  async resendOtp(
+    data: { email?: string; mobile?: string },
+    type: 'email' | 'mobile'
+  ) {
+    const pending = await prisma.pendingRegistration.findFirst({
+      where:
+        type === 'email'
+          ? { email: data.email }
+          : { mobile: data.mobile },
     });
 
     if (!pending) {
@@ -151,27 +210,48 @@ export class AuthService {
     }
 
     if (pending.expiresAt < new Date()) {
-      await prisma.pendingRegistration.delete({ where: { mobile } });
-      throw new BadRequestError('Registration expired. Please start again.');
+      await prisma.pendingRegistration.delete({
+        where: { id: pending.id },
+      });
+
+      throw new BadRequestError(
+        'Registration expired. Please start again.'
+      );
     }
 
     const newOtp = generateOtp();
 
     if (type === 'email') {
       await prisma.pendingRegistration.update({
-        where: { mobile },
+        where: { id: pending.id },
         data: { emailOtp: newOtp },
       });
+
+      await sendOtpEmail(
+        pending.email,
+        newOtp,
+        pending.firstName
+      );
+
       console.log(`📧 Resend Email OTP for ${pending.email}: ${newOtp}`);
-    } else {
-      await prisma.pendingRegistration.update({
-        where: { mobile },
-        data: { mobileOtp: newOtp },
-      });
-      console.log(`📱 Resend Mobile OTP for ${mobile}: ${newOtp}`);
     }
 
-    return { message: `OTP resent to ${type}` };
+    if (type === 'mobile') {
+      await prisma.pendingRegistration.update({
+        where: { id: pending.id },
+        data: { mobileOtp: newOtp },
+      });
+
+      // SMS provider call here
+      console.log(`📱 Resend Mobile OTP for ${pending.mobile}: ${newOtp}`);
+    }
+
+    return {
+      success: true,
+      message: `OTP resent to ${type}`,
+      email: pending.email,
+      mobile: pending.mobile,
+    };
   }
 
   // ========== LOGIN ==========
@@ -198,7 +278,7 @@ export class AuthService {
       throw new UnauthorizedError('Invalid password');
     }
 
-    const tokens = await this.generateTokens(user.id, user.role);
+    const tokens = await this.generateTokens(user.id, user.role, user.kycStatus);
 
     return {
       message: 'Login successful',
@@ -209,6 +289,8 @@ export class AuthService {
         email: user.email,
         mobile: user.mobile,
         role: user.role,
+        isVerified: user.isVerified,
+        kycStatus: user.kycStatus,
       },
       ...tokens,
     };
@@ -220,26 +302,45 @@ export class AuthService {
     let user;
 
     if (data.email) {
-      user = await prisma.user.findUnique({ where: { email: data.email } });
+      user = await prisma.user.findUnique({
+        where: { email: data.email },
+      });
     } else if (data.mobile) {
-      user = await prisma.user.findUnique({ where: { mobile: data.mobile } });
+      user = await prisma.user.findUnique({
+        where: { mobile: data.mobile },
+      });
     }
 
     if (!user) {
       throw new NotFoundError('User not found');
     }
 
-    // Generate OTP
     const otp = generateOtp();
     const key = `forgot:${user.id}`;
 
-    // Store in Redis (10 min expiry)
+    // Store OTP in Redis for 10 minutes
     await storeSession(key, otp, 600);
 
-    // TODO: Send OTP via email/SMS
-    console.log(`🔐 Forgot Password OTP for ${data.email || data.mobile}: ${otp}`);
+    if (data.email) {
+      const resetLink = `${env.PASSWORD_RESET_URL}?email=${encodeURIComponent(user.email)}&otp=${encodeURIComponent(otp)}`;
+
+      await sendPasswordResetEmail(
+        user.email,
+        otp,
+        user.firstName,
+        resetLink
+      );
+
+      console.log(`📧 Forgot Password reset link sent to ${user.email}: ${resetLink}`);
+    }
+
+    if (data.mobile) {
+      // TODO: Integrate SMS provider
+      console.log(`📱 Forgot Password OTP for ${user.mobile}: ${otp}`);
+    }
 
     return {
+      success: true,
       message: 'OTP sent for password reset',
       expiresIn: 600,
     };
@@ -353,9 +454,15 @@ export class AuthService {
   }
 
   // ========== PRIVATE ==========
-  private async generateTokens(userId: string, role: string) {
+  // Enums ko explicitly pass karo type safety ke liye
+  private async generateTokens(userId: string, role: string, kycStatus: string) {
     const accessToken = this.fastify.jwt.sign(
-      { userId, role, type: 'access' },
+      {
+        userId,
+        role,
+        kycStatus,
+        type: 'access'
+      },
       { expiresIn: env.JWT_EXPIRES_IN }
     );
 
