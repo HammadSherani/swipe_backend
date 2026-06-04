@@ -12,7 +12,7 @@ import {
 } from '../../errors/custom-errors.js';
 import { InitiateRegisterInput, VerifyOtpInput, LoginInput, ForgotPasswordInput, ResetPasswordInput, ChangePasswordInput } from './auth.schema.js';
 import { prisma } from '../../config/database.js';
-import { sendOtpEmail, sendPasswordResetEmail } from '@/services/email.service.js';
+import { sendOtpEmail, sendPasswordResetEmail } from '../../services/email.service.js';
 
 export class AuthService {
   constructor(private fastify: FastifyInstance) { }
