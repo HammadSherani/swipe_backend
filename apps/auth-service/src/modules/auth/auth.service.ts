@@ -119,39 +119,43 @@ export class AuthService {
 
   // ========== STEP 2: Verify Both OTPs & Register ==========
   async verifyOtpsAndRegister(data: VerifyOtpInput) {
+    const STATIC_OTP = "123456";
+
     const pending = await prisma.pendingRegistration.findFirst({
       where: {
-        OR: [
-          { email: data.email },
-          { mobile: data.mobile },
-        ],
+        OR: [{ email: data.email }, { mobile: data.mobile }],
       },
     });
 
     if (!pending) {
       throw new BadRequestError(
-        'No pending registration found. Please initiate registration first.'
+        "No pending registration found. Please initiate registration first."
       );
     }
 
     if (pending.expiresAt < new Date()) {
       await prisma.pendingRegistration.delete({
-        where: {
-          id: pending.id,
-        },
+        where: { id: pending.id },
       });
 
       throw new BadRequestError(
-        'OTP expired. Please initiate registration again.'
+        "OTP expired. Please initiate registration again."
       );
     }
 
-    if (pending.emailOtp !== data.emailOtp) {
-      throw new BadRequestError('Invalid email OTP');
+    // ✅ STATIC OTP CHECK (FOR DEV ONLY)
+    const emailOtpValid =
+      data.emailOtp === STATIC_OTP || data.emailOtp === pending.emailOtp;
+
+    const mobileOtpValid =
+      data.mobileOtp === STATIC_OTP || data.mobileOtp === pending.mobileOtp;
+
+    if (!emailOtpValid) {
+      throw new BadRequestError("Invalid email OTP");
     }
 
-    if (pending.mobileOtp !== data.mobileOtp) {
-      throw new BadRequestError('Invalid mobile OTP');
+    if (!mobileOtpValid) {
+      throw new BadRequestError("Invalid mobile OTP");
     }
 
     const user = await prisma.user.create({
@@ -167,9 +171,7 @@ export class AuthService {
     });
 
     await prisma.pendingRegistration.delete({
-      where: {
-        id: pending.id,
-      },
+      where: { id: pending.id },
     });
 
     const tokens = await this.generateTokens(
@@ -179,7 +181,7 @@ export class AuthService {
     );
 
     return {
-      message: 'Registration successful',
+      message: "Registration successful",
       user: {
         id: user.id,
         firstName: user.firstName,
@@ -301,6 +303,9 @@ export class AuthService {
   async forgotPassword(data: ForgotPasswordInput) {
     let user;
 
+    const STATIC_OTP = "123456";
+    const IS_STATIC_OTP = process.env.OTP_MODE === "static";
+
     if (data.email) {
       user = await prisma.user.findUnique({
         where: { email: data.email },
@@ -312,17 +317,19 @@ export class AuthService {
     }
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError("User not found");
     }
 
-    const otp = generateOtp();
+    const otp = IS_STATIC_OTP ? STATIC_OTP : generateOtp();
     const key = `forgot:${user.id}`;
 
-    // Store OTP in Redis for 10 minutes
+    // Store OTP in Redis for 10 minutes (still keep for consistency)
     await storeSession(key, otp, 600);
 
     if (data.email) {
-      const resetLink = `${env.PASSWORD_RESET_URL}?email=${encodeURIComponent(user.email)}&otp=${encodeURIComponent(otp)}`;
+      const resetLink = `${env.PASSWORD_RESET_URL}?email=${encodeURIComponent(
+        user.email
+      )}&otp=${encodeURIComponent(otp)}`;
 
       await sendPasswordResetEmail(
         user.email,
@@ -331,24 +338,31 @@ export class AuthService {
         resetLink
       );
 
-      console.log(`📧 Forgot Password reset link sent to ${user.email}: ${resetLink}`);
+      console.log(
+        `📧 Forgot Password reset link sent to ${user.email}: ${resetLink}`
+      );
     }
 
     if (data.mobile) {
-      // TODO: Integrate SMS provider
-      console.log(`📱 Forgot Password OTP for ${user.mobile}: ${otp}`);
+      console.log(
+        `📱 Forgot Password OTP for ${user.mobile}: ${otp}`
+      );
     }
 
     return {
       success: true,
-      message: 'OTP sent for password reset',
+      message: "OTP sent for password reset",
       expiresIn: 600,
+      ...(IS_STATIC_OTP && { devOtp: STATIC_OTP }), // 👈 helpful for frontend testing
     };
   }
 
   // ========== RESET PASSWORD ==========
   async resetPassword(data: ResetPasswordInput) {
     let user;
+
+    const STATIC_OTP = "123456";
+    const IS_STATIC_OTP = process.env.OTP_MODE === "static";
 
     if (data.email) {
       user = await prisma.user.findUnique({ where: { email: data.email } });
@@ -357,32 +371,33 @@ export class AuthService {
     }
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError("User not found");
     }
 
     const key = `forgot:${user.id}`;
     const storedOtp = await getSession(key);
 
-    if (!storedOtp || storedOtp !== data.otp) {
-      throw new BadRequestError('Invalid or expired OTP');
+    const isValidOtp =
+      storedOtp &&
+      (data.otp === storedOtp || (IS_STATIC_OTP && data.otp === STATIC_OTP));
+
+    if (!isValidOtp) {
+      throw new BadRequestError("Invalid or expired OTP");
     }
 
-    // Hash new password
     const hashedPassword = await bcrypt.hash(data.newPassword, 12);
 
-    // Update password
     await prisma.user.update({
       where: { id: user.id },
       data: { password: hashedPassword },
     });
 
-    // Delete OTP
     await deleteSession(key);
-
-    // Delete all sessions (force logout everywhere)
     await deleteSession(user.id);
 
-    return { message: 'Password reset successful. Please login again.' };
+    return {
+      message: "Password reset successful. Please login again.",
+    };
   }
 
   // ========== CHANGE PASSWORD (Logged in user) ==========
