@@ -23,5 +23,5 @@ RUN apk add --no-cache openssl
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api-gateway/dist ./dist
 COPY --from=build /app/apps/api-gateway/package.json ./
-EXPOSE 3000
+EXPOSE 4999
 CMD ["node", "dist/server.js"]
