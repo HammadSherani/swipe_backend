@@ -12,60 +12,60 @@ datasource db {
 // MERCHANT (Main Entity)
 // ─────────────────────────────────────────────
 model Merchant {
-  id             String         @id @default(uuid())
-  userId         String         @unique 
+  id     String @id @default(uuid())
+  userId String @unique
 
   // 🏛️ Nigeria Strict Regulatory & KYC Fields (CRITICAL)
-  bvn            String?        @unique // Bank Verification Number (11 digits - Highly Sensitive)
-  nin            String?        @unique // National Identification Number (11 digits)
-  cacNumber      String?        @unique // Corporate Affairs Commission Registration Number (For Registered Businesses)
-  tin            String?        @unique // Tax Identification Number (Required for Tier 3 higher volumes)
-  kycLevel       KycLevel       @default(TIER_1)
-  kycStatus      KycStatus      @default(PENDING)
-  rejectionReason String?       // Agar KYC fail ho jaye to wajah save karne ke liye
+  bvn             String?   @unique // Bank Verification Number (11 digits - Highly Sensitive)
+  nin             String?   @unique // National Identification Number (11 digits)
+  cacNumber       String?   @unique // Corporate Affairs Commission Registration Number (For Registered Businesses)
+  tin             String?   @unique // Tax Identification Number (Required for Tier 3 higher volumes)
+  kycLevel        KycLevel  @default(TIER_1)
+  kycStatus       KycStatus @default(PENDING)
+  rejectionReason String? // Agar KYC fail ho jaye to wajah save karne ke liye
 
   // 📡 Integrations Metadata
-  nibssId        String?        @unique  
-  pagaReference  String?        @unique     
+  nibssId                String? @unique
+  pagaReference          String? @unique
   paystackSubaccountCode String? @unique // Agar Paystack split payments use kar rahe ho code mein
 
   // 🏢 Business Info
-  businessName   String
-  businessType   BusinessType   @default(SOLE_PROPRIETORSHIP)
-  description    String?
+  businessName String
+  businessType BusinessType @default(SOLE_PROPRIETORSHIP)
+  description  String?
 
   // 👤 Owner Info
-  ownerName      String
-  ownerDob       DateTime?      // Strictly mandatory by CBN to match with BVN Data
+  ownerName String
+  ownerDob  DateTime? // Strictly mandatory by CBN to match with BVN Data
 
   // 📧 Contact
-  email          String         @unique
-  mobile         String         @unique // Nigeria Format (+234...)
+  email  String @unique
+  mobile String @unique // Nigeria Format (+234...)
 
   // 🏠 Address (Strictly required for KYC verification alignment)
-  addressLine1   String         @default("Not Provided")
+  addressLine1   String  @default("Not Provided")
   addressLine2   String?
-  addressCity    String         @default("Lagos")
-  addressState   String         @default("Lagos") // E.g., Lagos, Abuja, Kano
+  addressCity    String  @default("Lagos")
+  addressState   String  @default("Lagos") // E.g., Lagos, Abuja, Kano
   addressZip     String?
-  addressCountry String         @default("Nigeria")
+  addressCountry String  @default("Nigeria")
 
   // 🏦 Bank Details (Settlement Account - NUBAN Specification)
-  bankCode       String         // 3-digit Central Bank code (e.g., 011 for First Bank, 058 for GTBank)
-  accountNumber  String         // 10-digit NUBAN standard account number
-  accountName    String         // System will verify this against BVN
+  bankCode      String // 3-digit Central Bank code (e.g., 011 for First Bank, 058 for GTBank)
+  accountNumber String // 10-digit NUBAN standard account number
+  accountName   String // System will verify this against BVN
 
   // 📊 Status & Control Flags
-  status         MerchantStatus @default(PENDING)
-  isActive       Boolean        @default(false) // Transaction control flag
+  status   MerchantStatus @default(PENDING)
+  isActive Boolean        @default(false) // Transaction control flag
 
   // 📝 Metadata
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // 🔗 Relations
-  qrCodes        QrCode[]
-  paymentLinks   PaymentLink[]
+  qrCodes         QrCode[]
+  paymentLinks    PaymentLink[]
   virtualAccounts VirtualAccount[] // Multiple virtual accounts support (for dynamic routes)
 
   @@map("merchants")
@@ -77,12 +77,12 @@ model Merchant {
 model VirtualAccount {
   id            String   @id @default(uuid())
   merchantId    String
-  bankName      String   // e.g., Wema Bank, Providus Bank (provided via Paystack/Flutterwave)
+  bankName      String // e.g., Wema Bank, Providus Bank (provided via Paystack/Flutterwave)
   accountNumber String   @unique // The dedicated 10-digit NUBAN
   accountName   String
   createdAt     DateTime @default(now())
 
-  merchant      Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@map("merchant_virtual_accounts")
 }
@@ -91,18 +91,18 @@ model VirtualAccount {
 // QR CODE
 // ─────────────────────────────────────────────
 model QrCode {
-  id           String    @id @default(uuid())
-  merchantId   String
-  type         QrType
-  nibssQrData  String?   // NQR standard text string string
-  qrImageUrl   String?   // Generated QR Image link (S3/Cloudinary)
-  amount       Decimal?  @db.Decimal(12, 2) // Precision fixed for currency formatting
-  reference    String    @unique // Unique transaction/terminal reference
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  expiresAt    DateTime?
+  id          String    @id @default(uuid())
+  merchantId  String
+  type        QrType
+  nibssQrData String? // NQR standard text string string
+  qrImageUrl  String? // Generated QR Image link (S3/Cloudinary)
+  amount      Decimal?  @db.Decimal(12, 2) // Precision fixed for currency formatting
+  reference   String    @unique // Unique transaction/terminal reference
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
 
-  merchant     Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@map("qr_codes")
 }
@@ -120,7 +120,7 @@ model PaymentLink {
   clicks      Int      @default(0)
   createdAt   DateTime @default(now())
 
-  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@map("payment_links")
 }
@@ -132,7 +132,7 @@ enum MerchantStatus {
   PENDING
   VERIFIED
   ACTIVE
-  REJECTED    
+  REJECTED
   SUSPENDED
 }
 

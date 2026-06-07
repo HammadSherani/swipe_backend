@@ -12,24 +12,24 @@ const PAGA_HASH_KEY = process.env.PAGA_HASH_KEY ||
   '35e9225ea30442ca894474da45fc992e5b027df87a8c413aac0e5d3b3d88a8b813d442717bcf4a6bba95eadea6442ee786f086fb22284b5ba81ce184682e45d2';
 
 // ─────────────────────────────────────────────
-// TYPES
+// TYPES (Strictly aligned with your new OnboardInput)
 // ─────────────────────────────────────────────
 export interface OnboardMerchantInput {
-  merchantId: string;
+  merchantId: string;      // This is internal DB primary uuid
   businessName: string;
   businessType: string;
   ownerName: string;
   email: string;
   mobile: string;
-  address?: {
-    line1?: string;
-    line2?: string;
-    city?: string;
-    state?: string;
-    zip?: string;
-    country?: string;
-  };
-  ownerDob?: string; // ISO format: 1990-01-01
+  bvn: string;            // Added for regulatory hashing compliance if needed by Paga setup
+  accountNumber: string;  // Added NUBAN parameter
+  bankCode: string;       // Added Bank routing identifier
+  ownerDob: string;       // ISO string format passed from updated Zod input
+  addressLine1: string;   // Flat values passed directly from new schema layout
+  addressLine2?: string | null;
+  addressCity: string;
+  addressState: string;
+  addressCountry: string;
 }
 
 interface PagaOnboardRequest {
@@ -43,7 +43,6 @@ interface PagaOnboardRequest {
       addressLine2?: string;
       addressCity: string;
       addressState: string;
-      addressZip?: string;
       addressCountry: string;
     };
     legalEntityRepresentative: {
@@ -54,17 +53,15 @@ interface PagaOnboardRequest {
       email: string;
     };
     additionalParameters?: {
-      establishedDate?: string;
-      websiteUrl?: string;
       displayName?: string;
+      bankCode?: string;         // Highly recommended metadata for payout reconciliation
+      accountNumber?: string;
+      bvn?: string;
     };
   };
   integration?: {
     type: 'EMAIL_NOTIFICATION' | 'MERCHANT_NOTIFICATION_REVERSE_API';
     financeAdminEmail?: string;
-    callbackUrl?: string;
-    username?: string;
-    password?: string;
   };
 }
 
@@ -162,13 +159,17 @@ export class PagaService {
   }> {
     const reference = this.generateReference();
 
-    // Split ownerName
+    // Split ownerName safely
     const nameParts = data.ownerName.trim().split(/\s+/);
     const firstName = nameParts[0] || 'Unknown';
     const lastName = nameParts.slice(1).join(' ') || firstName;
 
-    // Default address (Nigeria)
-    const address = data.address || {};
+    // ISO timestamp alignment check
+    let formattedDob = '1990-01-01T00:00:00.000+01:00';
+    if (data.ownerDob) {
+      // Input formats directly from ISO strings handled cleanly
+      formattedDob = data.ownerDob.includes('T') ? data.ownerDob : `${data.ownerDob}T00:00:00.000+01:00`;
+    }
 
     const onboardData: PagaOnboardRequest = {
       reference,
@@ -177,24 +178,24 @@ export class PagaService {
         legalEntity: {
           name: data.businessName,
           description: data.businessType,
-          addressLine1: address.line1 || 'Not Provided',
-          addressLine2: address.line2,
-          addressCity: address.city || 'Lagos',
-          addressState: address.state || 'Lagos',
-          addressZip: address.zip,
-          addressCountry: address.country || 'Nigeria',
+          addressLine1: data.addressLine1,
+          addressLine2: data.addressLine2 || undefined,
+          addressCity: data.addressCity,
+          addressState: data.addressState,
+          addressCountry: data.addressCountry,
         },
         legalEntityRepresentative: {
           firstName,
           lastName,
-          dateOfBirth: data.ownerDob 
-            ? `${data.ownerDob}T00:00:00.000+01:00`
-            : '1990-01-01T00:00:00.000+01:00',
+          dateOfBirth: formattedDob,
           phone: data.mobile,
           email: data.email,
         },
         additionalParameters: {
           displayName: data.businessName,
+          bankCode: data.bankCode,
+          accountNumber: data.accountNumber,
+          bvn: data.bvn
         },
       },
       integration: {
@@ -216,21 +217,21 @@ export class PagaService {
         }
       );
 
-      // Response code 0 = Success
+      // Response code 0 = Success standard on Paga endpoints
       const isSuccess = result.responseCode === 0;
 
       return {
         success: isSuccess,
         reference,
         pagaResponse: result,
-        pagaMerchantId: result.referenceNumber, // Paga returns merchant reference
+        pagaMerchantId: result.referenceNumber, 
         error: isSuccess ? undefined : result.message,
       };
     } catch (error) {
       return {
         success: false,
         reference,
-        error: error instanceof Error ? error.message : 'Unknown Paga error',
+        error: error instanceof Error ? error.message : 'Unknown Paga pipeline crash',
       };
     }
   }
@@ -268,8 +269,8 @@ export class PagaService {
    */
   async getBanks(): Promise<any> {
     const reference = this.generateReference();
-   const hashInput = reference + PAGA_HASH_KEY;
-  const hash = crypto.createHash('sha512').update(hashInput).digest('hex');
+    const hashInput = reference + PAGA_HASH_KEY;
+    const hash = crypto.createHash('sha512').update(hashInput).digest('hex');
 
     const url = `${PAGA_BASE_URL}/getBanks`;
     

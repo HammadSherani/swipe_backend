@@ -7,6 +7,22 @@ function getUserId(request: FastifyRequest): string {
   return user.userId;
 }
 
+export async function initInternalMerchantHandler(
+  request: FastifyRequest<{ Body: { merchantId: string } }>,
+  reply: FastifyReply
+) {
+  const { merchantId } = request.body;
+
+  if (!merchantId) {
+    return reply.status(400).send({ success: false, message: "merchantId is required" });
+  }
+
+   const service = new MerchantService();
+  const result = await service.initializeProfile(merchantId);
+
+  return reply.status(201).send({ success: true, data: result });
+}
+
 export async function onboardHandler(
   request: FastifyRequest<{ Body: OnboardInput }>,
   reply: FastifyReply

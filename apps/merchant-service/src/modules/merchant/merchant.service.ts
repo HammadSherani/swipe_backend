@@ -9,106 +9,163 @@ export class MerchantService {
 
   // NEW CODE
 
+
+  async initializeProfile(merchantId: string) {
+    const existing = await prisma.merchant.findUnique({
+      where: { userId: merchantId }
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+
+    return await prisma.merchant.create({
+      data: {
+        userId: merchantId,
+        businessName: "Pending Onboarding",
+        businessType: "SOLE_PROPRIETORSHIP",
+        ownerName: "Pending Onboarding",
+        email: `pending-${merchantId}@temporary.com`,
+        mobile: `pending-${merchantId}`,
+        bankCode: "000",
+        accountNumber: "0000000000",
+        accountName: "Pending Verification",
+        status: 'PENDING',
+        kycStatus: 'PENDING',
+        isActive: false
+      }
+    });
+  }
+
   /**
    * 🚀 Main onboarding flow
    */
   async onboard(userId: string, data: OnboardInput) {
-    // ── Step 1: Check if already onboarded ──
-    const existing = await prisma.merchant.findUnique({ where: { userId } });
-    if (existing) {
-      throw new BadRequestError('Merchant already onboarded');
+    const merchant = await prisma.merchant.findUnique({ where: { userId } });
+    if (!merchant) {
+      throw new NotFoundError('Merchant baseline profile not found. Please register first.');
     }
 
-    // ── Step 2: Check email/mobile uniqueness ──
-    const emailExists = await prisma.merchant.findUnique({
-      where: { email: data.email }
+    if (merchant.kycStatus === 'APPROVED' || merchant.status === 'ACTIVE') {
+      throw new BadRequestError('Merchant is already verified and active.');
+    }
+
+    // ── Step 2: Check email/mobile/BVN uniqueness strictly excluding current record ──
+    const emailExists = await prisma.merchant.findFirst({
+      where: { email: data.email, NOT: { userId } }
     });
-    if (emailExists) {
-      throw new BadRequestError('Email already registered');
-    }
+    if (emailExists) throw new BadRequestError('Email already registered by another merchant');
 
-    const mobileExists = await prisma.merchant.findUnique({
-      where: { mobile: data.mobile }
+    const mobileExists = await prisma.merchant.findFirst({
+      where: { mobile: data.mobile, NOT: { userId } }
     });
-    if (mobileExists) {
-      throw new BadRequestError('Mobile number already registered');
-    }
+    if (mobileExists) throw new BadRequestError('Mobile number already registered by another merchant');
 
-    // ── Step 3: Create merchant in DB (PENDING status) ──
-    const merchant = await prisma.merchant.create({
+    const bvnExists = await prisma.merchant.findFirst({
+      where: { bvn: data.bvn, NOT: { userId } }
+    });
+    if (bvnExists) throw new BadRequestError('BVN already linked to another merchant account');
+
+
+    const updatedDraft = await prisma.merchant.update({
+      where: { userId },
       data: {
-        userId,
+        bvn: data.bvn,
+        nin: data.nin || null,
+        cacNumber: data.cacNumber || null,
         businessName: data.businessName,
         businessType: data.businessType,
         ownerName: data.ownerName,
+        ownerDob: new Date(data.ownerDob),
         email: data.email,
         mobile: data.mobile,
+        addressLine1: data.addressLine1,
+        addressLine2: data.addressLine2 || null,
+        addressCity: data.addressCity,
+        addressState: data.addressState,
         bankCode: data.bankCode,
         accountNumber: data.accountNumber,
         accountName: data.accountName,
-        status: 'PENDING',
-        isVerified: false,
+        kycStatus: 'UNDER_REVIEW', // Status changes to review phase
       },
     });
 
-    // ── Step 4: Call Paga API ──
+    // ── Step 4: Call Paga Nigeria Third-Party API ──
     try {
+      // ── Step 4: Call Paga Nigeria Third-Party API with ALL compliant fields ──
       const pagaResult = await pagaService.onboardMerchant({
-        merchantId: merchant.id,
+        merchantId: updatedDraft.id,
         businessName: data.businessName,
         businessType: data.businessType,
         ownerName: data.ownerName,
+        ownerDob: data.ownerDob,            // 👈 Mandatory field added
         email: data.email,
         mobile: data.mobile,
-        // address: data.address,
-        // ownerDob: data.ownerDob,
+        bvn: data.bvn,
+        accountNumber: data.accountNumber,
+        bankCode: data.bankCode,
+        addressLine1: data.addressLine1,    // 👈 Mandatory address layers synced
+        addressLine2: data.addressLine2,
+        addressCity: data.addressCity,
+        addressState: data.addressState,
+        addressCountry: data.addressCountry || 'Nigeria',
       });
 
       if (!pagaResult.success) {
-        // Paga onboarding failed → mark as REJECTED
+        // Paga onboarding rejected/failed → local DB state update
         await prisma.merchant.update({
-          where: { id: merchant.id },
-          data: { status: 'REJECTED' },
+          where: { id: updatedDraft.id },
+          data: {
+            status: 'REJECTED',
+            kycStatus: 'REJECTED',
+            rejectionReason: pagaResult.error || 'Paga validation failed'
+          },
         });
 
         throw new BadRequestError(
-          `Paga onboarding failed: ${pagaResult.error || 'Unknown error'}`
+          `Paga validation failed: ${pagaResult.error || 'Unknown regulatory error'}`
         );
       }
 
-      // ── Step 5: Success! Update with Paga reference ──
-      // Paga returns merchant ID in referenceNumber field
-      const updatedMerchant = await prisma.merchant.update({
-        where: { id: merchant.id },
+      // ── Step 5: Success! Update with Paga/NIBSS references and activate ──
+      const activeMerchant = await prisma.merchant.update({
+        where: { id: updatedDraft.id },
         data: {
-          status: 'ACTIVE', // Or keep PENDING if Paga needs manual approval
+          status: 'ACTIVE',
+          kycStatus: 'APPROVED',
+          pagaReference: pagaResult.reference,
           nibssId: pagaResult.pagaMerchantId || pagaResult.reference,
-          isVerified: true,
+          isActive: true, // Transaction flow is now unlocked
         },
       });
 
       return {
         success: true,
-        merchantId: updatedMerchant.id,
+        merchantId: activeMerchant.id,
         pagaReference: pagaResult.reference,
-        pagaMerchantId: pagaResult.pagaMerchantId,
-        message: 'Merchant onboarded successfully on Paga.',
-        status: updatedMerchant.status,
+        message: 'Merchant onboarded and verified successfully on Paga network.',
+        status: activeMerchant.status,
+        kycStatus: activeMerchant.kycStatus
       };
 
     } catch (error) {
-      // If it's already a BadRequestError, re-throw
-      if (error instanceof BadRequestError) throw error;
+      // Agar pehle hi custom local handled error hai (jaise bad request), directly re-throw karo
+      if (error instanceof BadRequestError || error instanceof NotFoundError) throw error;
 
-      // Unexpected error → mark as REJECTED
+      // Network drop ya unhandled integration exceptions par runtime fallback mechanism
       await prisma.merchant.update({
-        where: { id: merchant.id },
-        data: { status: 'REJECTED' },
+        where: { id: updatedDraft.id },
+        data: {
+          status: 'REJECTED',
+          kycStatus: 'REJECTED',
+          rejectionReason: error instanceof Error ? error.message : 'System integration failure'
+        },
       });
 
-      console.error('Onboarding error:', error);
+      console.error('Fatal Onboarding Integration Error:', error);
       throw new BadRequestError(
-        `Onboarding failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Onboarding pipeline failed: ${error instanceof Error ? error.message : 'Unknown integration error'}`
       );
     }
   }
@@ -200,7 +257,7 @@ export class MerchantService {
     }
 
     const reference = `BAL-${Date.now()}`;
-    return pagaService.getMerchantBalance(merchant.nibssId, reference); 
+    return pagaService.getMerchantBalance(merchant.nibssId, reference);
   }
 
   // NEW CODE

@@ -8,11 +8,13 @@ import {
   BadRequestError,
   UnauthorizedError,
   TooManyRequestsError,
-  NotFoundError
+  NotFoundError,
+  InternalServerError
 } from '../../errors/custom-errors.js';
 import { InitiateRegisterInput, VerifyOtpInput, LoginInput, ForgotPasswordInput, ResetPasswordInput, ChangePasswordInput } from './auth.schema.js';
-import { prisma } from '../../config/database.js';
 import { sendOtpEmail, sendPasswordResetEmail } from '../../services/email.service.js';
+import axios from "axios";
+import { prisma } from '../../config/database.js';
 
 export class AuthService {
   constructor(private fastify: FastifyInstance) { }
@@ -106,7 +108,7 @@ export class AuthService {
     }
 
     // ✅ Send Email OTP
-    await sendOtpEmail(data.email, emailOtp, data.firstName);
+    // await sendOtpEmail(data.email, emailOtp, data.firstName);
 
     // TODO: Send SMS OTP
     console.log(`📱 Mobile OTP for ${data.mobile}: ${mobileOtp}`);
@@ -143,7 +145,6 @@ export class AuthService {
       );
     }
 
-    // ✅ STATIC OTP CHECK (FOR DEV ONLY)
     const emailOtpValid =
       data.emailOtp === STATIC_OTP || data.emailOtp === pending.emailOtp;
 
@@ -170,18 +171,53 @@ export class AuthService {
       },
     });
 
+    // 2. ⚠️ MICROSERVICE COMMUNICATION (Strict Action)
+    if (user.role === "MERCHANT") {
+      try {
+        const merchantServiceUrl = process.env.MERCHANT_SERVICE_URL || "http://localhost:3002";
+
+        await axios.post(`${merchantServiceUrl}/merchant/internal/merchants`, {
+          merchantId: user.id,
+        });
+
+      } catch (error: any) {
+        console.error("❌ ERROR: Failed to create profile in merchant-service:", error.message);
+
+        // Lead Directive: Agar doosri service fail ho jaye, to hum adhoora data nahi chorenge.
+        // Pehle is user ko Auth DB se roll back karo, taake database aapas mein de-sync na hon.
+        await prisma.user.delete({ where: { id: user.id } });
+
+        throw new InternalServerError(
+          "Merchant onboarding initialization failed. Please try again."
+        );
+      }
+    }
+
+    // 3. Clean up pending registration
     await prisma.pendingRegistration.delete({
       where: { id: pending.id },
     });
 
+    // 4. Token Generation (KycStatus explicitly 'PENDING' pass kar rahe hain)
     const tokens = await this.generateTokens(
       user.id,
       user.role,
-      user.kycStatus
+      "PENDING"
     );
 
+    let isKycComplete;
+
+    if (user.kycStatus === "PENDING") {
+      isKycComplete = "KYC_ONBOARDING";
+    } else {
+      isKycComplete = "DASHBOARD";
+    }
+
+
+    // 5. Standard Clean Response Structure
     return {
-      message: "Registration successful",
+      success: true,
+      message: "Registration successful. Profile initialized.",
       user: {
         id: user.id,
         firstName: user.firstName,
@@ -189,9 +225,9 @@ export class AuthService {
         email: user.email,
         mobile: user.mobile,
         role: user.role,
-        kycStatus: user.kycStatus,
       },
       ...tokens,
+      "redirectTo": isKycComplete
     };
   }
 
@@ -282,6 +318,14 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user.id, user.role, user.kycStatus);
 
+    let isKycComplete;
+
+    if (user.kycStatus === "PENDING") {
+      isKycComplete = "KYC_ONBOARDING";
+    } else {
+      isKycComplete = "DASHBOARD";
+    }
+
     return {
       message: 'Login successful',
       user: {
@@ -295,6 +339,7 @@ export class AuthService {
         kycStatus: user.kycStatus,
       },
       ...tokens,
+      "redirectTo": isKycComplete
     };
   }
 

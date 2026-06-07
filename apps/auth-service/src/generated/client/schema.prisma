@@ -22,18 +22,18 @@ enum KycStatus {
 }
 
 model User {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   firstName  String
   lastName   String
-  email      String   @unique
-  mobile     String   @unique
+  email      String    @unique
+  mobile     String    @unique
   password   String
-  role       Role     @default(USER)
-  kycStatus   KycStatus @default(PENDING) 
-  isVerified Boolean  @default(false)
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  role       Role      @default(USER)
+  kycStatus  KycStatus @default(PENDING)
+  isVerified Boolean   @default(false)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
 
 // Temporary registration data (before OTP verify)
@@ -43,7 +43,7 @@ model PendingRegistration {
   lastName  String
   email     String
   mobile    String   @unique
-  password  String   // hashed
+  password  String // hashed
   role      Role     @default(USER)
   emailOtp  String
   mobileOtp String

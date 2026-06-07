@@ -1,7 +1,7 @@
 // File: apps/auth-service/src/modules/auth/auth.routes.ts
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { 
+import {
   initiateRegisterHandler,
   verifyOtpsHandler,
   resendOtpHandler,
@@ -10,7 +10,7 @@ import {
   logoutHandler,
   forgotPasswordHandler,
   resetPasswordHandler,
-  changePasswordHandler 
+  changePasswordHandler
 } from './auth.controller.js';
 
 // ✅ Direct authenticate function (plugin ki zaroorat nahi)
@@ -29,9 +29,9 @@ async function authenticate(request: FastifyRequest, reply: FastifyReply) {
 }
 
 export async function authRoutes(fastify: FastifyInstance) {
-  
+
   // ========== PUBLIC ROUTES ==========
-  
+
   fastify.post('/register/initiate', {
     schema: { tags: ['Auth'], description: 'Step 1: Enter details, OTPs sent' },
     handler: initiateRegisterHandler,
@@ -52,6 +52,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     handler: loginHandler,
   });
 
+
   fastify.post('/forgot-password', {
     schema: { tags: ['Auth'], description: 'Forgot password', body: { type: 'object', properties: { email: { type: 'string' } }, required: ['email'] } },
     handler: forgotPasswordHandler
@@ -68,7 +69,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   });
 
   // ========== PROTECTED ROUTES ==========
-  
+
   // ✅ Direct function use karo
   fastify.post('/logout', {
     preHandler: [authenticate],
@@ -82,15 +83,30 @@ export async function authRoutes(fastify: FastifyInstance) {
     handler: changePasswordHandler,
   });
 
+
+  fastify.get('/verify', {
+    preHandler: [authenticate],
+    schema: { tags: ['Auth'], description: 'Login' },
+    handler: async (request, reply) => {
+      const user = request.user as { userId: string; role: string };
+      return reply.send({
+        success: true,
+        // data: { userId: user.userId, role: user.role }
+        data: { userId: user.userId, role: user.role, kycStatus: (user as any).kycStatus }
+      });
+    },
+  });
+
   fastify.get('/me', {
     preHandler: [authenticate],
     schema: { tags: ['Auth'], description: 'Get current user' },
     handler: async (request, reply) => {
       const user = request.user as { userId: string; role: string };
-      return reply.send({ 
-        success: true, 
-        data: { userId: user.userId, role: user.role } 
+      return reply.send({
+        success: true,
+        data: { userId: user.userId, role: user.role }
       });
     },
   });
 }
+
