@@ -91,9 +91,18 @@ export class MerchantService {
       },
     });
 
-    // ── Step 4: Call Paga Nigeria Third-Party API ──
+      //  return {
+      //   success: true,
+      //   // merchantId: activeMerchant.id,
+      //   // pagaReference: pagaResult.reference,
+      //   message: 'Merchant onboarded and verified successfully on Paga network.',
+      //   // status: activeMerchant.status,
+      //   // kycStatus: activeMerchant.kycStat
+      //   // us
+      //   merchant: updatedDraft
+      // };
+
     try {
-      // ── Step 4: Call Paga Nigeria Third-Party API with ALL compliant fields ──
       const pagaResult = await pagaService.onboardMerchant({
         merchantId: updatedDraft.id,
         businessName: data.businessName,
@@ -113,7 +122,6 @@ export class MerchantService {
       });
 
       if (!pagaResult.success) {
-        // Paga onboarding rejected/failed → local DB state update
         await prisma.merchant.update({
           where: { id: updatedDraft.id },
           data: {

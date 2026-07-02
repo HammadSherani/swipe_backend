@@ -7,7 +7,7 @@ import axios, { AxiosError } from 'axios';
 const PAGA_BASE_URL = process.env.PAGA_BASE_URL || 
   'https://www.mypaga.com/paga-webservices/business-rest/secured';
 const PAGA_PRINCIPAL = process.env.PAGA_PRINCIPAL || 'A42D872B-505B-4CC4-BC6E-7FB235B001A5';
-const PAGA_CREDENTIAL = process.env.PAGA_CREDENTIAL || 'dS2%d*W=89ZNeGq';
+const PAGA_CREDENTIAL = process.env.PAGA_CREDENTIAL || 'dS2%d*W=89ZNeGq'; 
 const PAGA_HASH_KEY = process.env.PAGA_HASH_KEY || 
   '35e9225ea30442ca894474da45fc992e5b027df87a8c413aac0e5d3b3d88a8b813d442717bcf4a6bba95eadea6442ee786f086fb22284b5ba81ce184682e45d2';
 
@@ -115,6 +115,8 @@ export class PagaService {
     }
   ): Promise<T> {
     const url = `${PAGA_BASE_URL}/${endpoint}`;
+    console.log("this url hits", url);
+    
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -206,7 +208,7 @@ export class PagaService {
 
     try {
       const result = await this.makeRequest<PagaResponse>(
-        'onboardMerchant',
+        'registerCustomer',
         onboardData,
         {
           referenceNumber: reference,
